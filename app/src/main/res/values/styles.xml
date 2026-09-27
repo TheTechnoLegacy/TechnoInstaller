@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="padded">
+        <item name="android:paddingStart">16dip</item>
+        <item name="android:paddingEnd">16dip</item>
+    </style>
+</resources>

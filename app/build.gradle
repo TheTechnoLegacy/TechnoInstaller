@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.techno.installer'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.techno.installer"
+        // minSdk 21 (Android 5.0): PackageInstaller.Session itself works back
+        // to API 21. Below API 26 there's no REQUEST_INSTALL_PACKAGES /
+        // canRequestPackageInstalls() and no non-privileged uninstall API -
+        // see the Build.VERSION.SDK_INT branches in PackageInstallerActivity
+        // and UninstallAppProgress for what changes pre-26.
+        minSdk 21
+        targetSdk 26
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // Shizuku's IInstallerUserService.aidl needs the AIDL compiler enabled
+    // (AGP 8+ requires this explicitly).
+    buildFeatures {
+        aidl true
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+
+    // Shizuku: lets a normal app run privileged shell commands through a
+    // running Shizuku (adb-shell) or Sui (root) service, with no INSTALL_PACKAGES
+    // of its own. See ShizukuInstaller.java / InstallerUserService.java.
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
+}

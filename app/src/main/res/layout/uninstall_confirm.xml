@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent">
+
+    <include
+        android:id="@+id/uninstall_activity_snippet"
+        layout="@layout/app_details"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/uninstall_confirm"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:textColor="?android:attr/textColorSecondary"
+        style="@style/padded" />
+
+    <View
+        android:layout_width="fill_parent"
+        android:layout_height="0dip"
+        android:layout_weight="1" />
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:measureWithLargestChild="true"
+        style="?android:attr/buttonBarStyle">
+
+        <Button
+            android:id="@+id/cancel_button"
+            android:layout_width="0dip"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/cancel"
+            android:maxLines="2"
+            style="?android:attr/buttonBarButtonStyle" />
+
+        <Button
+            android:id="@+id/ok_button"
+            android:layout_width="0dip"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/ok"
+            android:maxLines="2"
+            style="?android:attr/buttonBarButtonStyle" />
+    </LinearLayout>
+</LinearLayout>
