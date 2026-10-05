@@ -1,202 +1,186 @@
 package com.techno.installer;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.PermissionGroupInfo;
+import android.content.pm.PermissionInfo;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.util.Log;
 import android.view.View;
-import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
-/**
- * Replaces the system-privileged entry point of the original PackageInstaller app.
- *
- * The original activity ran as a signature|system component and relied on
- * INSTALL_PACKAGES to silently install the app after showing this confirmation.
- * A normal user app can never hold INSTALL_PACKAGES, so this version:
- *   1. Stages the incoming APK into our own cache dir (so we always have a
- *      plain java.io.File to read, regardless of the source scheme).
- *   2. Shows the same "do you want to install this?" confirmation the
- *      original app showed.
- *   3. Hands off to InstallAppProgress, which performs the real install via
- *      PackageInstaller.Session (REQUEST_INSTALL_PACKAGES, API 26+). The
- *      final "are you sure" prompt the user sees is actually shown by the
- *      system itself (STATUS_PENDING_USER_ACTION) - that's expected and is
- *      the normal, non-privileged install flow.
- */
-public class PackageInstallerActivity extends Activity implements View.OnClickListener {
+/** Step 1: shows the app and the permissions it requests, like the 4.3 installer. */
+public class PackageInstallerActivity extends Activity {
 
-    private static final String TAG = "TechnoInstaller";
-    static final String EXTRA_STAGED_APK_PATH = "com.techno.installer.extra.STAGED_APK_PATH";
-    static final String EXTRA_APP_LABEL = "com.techno.installer.extra.APP_LABEL";
-
-    private File mStagedApk;
-    private PackageInfo mPkgInfo;
-    private CharSequence mLabel;
-    private Drawable mIcon;
+    private File staged;
+    private PackageInfo pkgInfo;
+    private CharSequence label;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Uri uri = getIntent().getData();
+        if (uri == null) { finish(); return; }
 
-        Uri sourceUri = getIntent().getData();
-        if (sourceUri == null) {
-            Log.e(TAG, "No APK Uri in the incoming intent");
+        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            Toast.makeText(this, "Allow installs from this source, then try again", Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName())));
             finish();
             return;
         }
 
-        mStagedApk = stageIncomingApk(sourceUri);
-        if (mStagedApk == null) {
-            showErrorAndFinish(R.string.Parse_error_dlg_title, R.string.Parse_error_dlg_text);
-            return;
-        }
+        setContentView(R.layout.install_confirm);
+        findViewById(R.id.ok_button).setEnabled(false);
+        findViewById(R.id.cancel_button).setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { cleanup(); finish(); }
+        });
 
-        PackageManager pm = getPackageManager();
-        mPkgInfo = pm.getPackageArchiveInfo(mStagedApk.getPath(), 0);
-        if (mPkgInfo == null) {
-            showErrorAndFinish(R.string.Parse_error_dlg_title, R.string.Parse_error_dlg_text);
-            return;
-        }
-
-        // getPackageArchiveInfo() doesn't resolve resources against the archive by
-        // default; point applicationInfo at the staged file so label/icon load correctly.
-        ApplicationInfo appInfo = mPkgInfo.applicationInfo;
-        appInfo.sourceDir = mStagedApk.getPath();
-        appInfo.publicSourceDir = mStagedApk.getPath();
-        mLabel = appInfo.loadLabel(pm);
-        mIcon = appInfo.loadIcon(pm);
-
-        if (!pm.canRequestPackageInstalls()) {
-            showUnknownSourcesBlockedDialog();
-            return;
-        }
-
-        showConfirmUi();
-    }
-
-    /** Copies whatever URI scheme we were handed into our own cache dir. */
-    private File stageIncomingApk(Uri sourceUri) {
-        File outDir = new File(getCacheDir(), "staged_apks");
-        if (!outDir.exists() && !outDir.mkdirs()) {
-            Log.e(TAG, "Could not create staging dir");
-            return null;
-        }
-        File outFile = new File(outDir, "staged.apk");
-        try (InputStream in = getContentResolver().openInputStream(sourceUri);
-             OutputStream out = new FileOutputStream(outFile)) {
-            if (in == null) return null;
-            byte[] buf = new byte[64 * 1024];
-            int read;
-            while ((read = in.read(buf)) != -1) {
-                out.write(buf, 0, read);
+        final Uri src = uri;
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final boolean ok = stage(src);
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        if (ok) bind(); else {
+                            Toast.makeText(PackageInstallerActivity.this,
+                                    "Problem parsing the package", Toast.LENGTH_LONG).show();
+                            finish();
+                        }
+                    }
+                });
             }
-            return outFile;
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to stage incoming APK", e);
-            return null;
-        }
+        }).start();
     }
 
-    private void showConfirmUi() {
-        setContentView(R.layout.install_start);
-
-        ((ImageView) findViewById(R.id.app_icon)).setImageDrawable(mIcon);
-        ((TextView) findViewById(R.id.app_name)).setText(mLabel);
-
-        boolean isUpdate = isAlreadyInstalled(mPkgInfo.packageName);
-        TextView question = findViewById(R.id.install_confirm_question);
-        question.setText(isUpdate
-                ? R.string.install_confirm_question_update_no_perms
-                : R.string.install_confirm_question_no_perms);
-        // Note: the runtime-permission list the original app showed here
-        // (READ_CONTACTS, INTERNET, etc.) came from a privileged API
-        // (PackageParser + AppSecurityPermissions) that a regular app can't
-        // call for an *uninstalled* APK. Modern Android also re-confirms
-        // dangerous permissions itself the first time the new app uses them,
-        // so we intentionally don't try to reproduce that list here.
-        findViewById(R.id.permission_list).setVisibility(View.GONE);
-
-        Button ok = findViewById(R.id.ok_button);
-        ok.setText(R.string.install);
-        ok.setOnClickListener(this);
-        findViewById(R.id.cancel_button).setOnClickListener(this);
-    }
-
-    private boolean isAlreadyInstalled(String packageName) {
+    private boolean stage(Uri uri) {
         try {
-            getPackageManager().getPackageInfo(packageName, 0);
-            return true;
-        } catch (PackageManager.NameNotFoundException e) {
+            staged = new File(getCacheDir(), "staged.apk");
+            InputStream in = getContentResolver().openInputStream(uri);
+            if (in == null) return false;
+            OutputStream out = new FileOutputStream(staged);
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            out.close(); in.close();
+            pkgInfo = getPackageManager().getPackageArchiveInfo(
+                    staged.getAbsolutePath(), PackageManager.GET_PERMISSIONS);
+            return pkgInfo != null;
+        } catch (Exception e) {
             return false;
         }
     }
 
-    private void showUnknownSourcesBlockedDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.unknown_apps_dlg_title)
-                .setMessage(R.string.unknown_apps_dlg_text)
-                .setCancelable(false)
-                .setNegativeButton(R.string.cancel, (d, w) -> finish())
-                .setPositiveButton(R.string.settings, (d, w) -> {
-                    try {
-                        startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                Uri.parse("package:" + getPackageName())));
-                    } catch (ActivityNotFoundException e) {
-                        Log.e(TAG, "No settings screen for unknown app sources", e);
+    private void bind() {
+        PackageManager pm = getPackageManager();
+        ApplicationInfo ai = pkgInfo.applicationInfo;
+        ai.sourceDir = staged.getAbsolutePath();
+        ai.publicSourceDir = staged.getAbsolutePath();
+        label = ai.loadLabel(pm);
+        Drawable icon = ai.loadIcon(pm);
+        ((ImageView) findViewById(R.id.app_icon)).setImageDrawable(icon);
+        ((TextView) findViewById(R.id.app_name)).setText(label);
+
+        // Group permission labels by permission group (PRIVACY, DEVICE ACCESS...)
+        Map<String, Set<String>> groups = new LinkedHashMap<String, Set<String>>();
+        if (pkgInfo.requestedPermissions != null) {
+            for (String perm : pkgInfo.requestedPermissions) {
+                try {
+                    PermissionInfo pi = pm.getPermissionInfo(perm, 0);
+                    CharSequence pl = pi.loadLabel(pm);
+                    String g = "OTHER";
+                    if (pi.group != null) {
+                        PermissionGroupInfo gi = pm.getPermissionGroupInfo(pi.group, 0);
+                        g = gi.loadLabel(pm).toString().toUpperCase();
                     }
-                    finish();
-                })
-                .show();
-    }
-
-    private void showErrorAndFinish(int title, int message) {
-        new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setMessage(message)
-                .setCancelable(false)
-                .setPositiveButton(R.string.ok, (d, w) -> finish())
-                .show();
-    }
-
-    @Override
-    public void onClick(View v) {
-        if (v.getId() == R.id.ok_button) {
-            Intent intent = new Intent(this, InstallAppProgress.class);
-            intent.putExtra(EXTRA_STAGED_APK_PATH, mStagedApk.getPath());
-            intent.putExtra(EXTRA_APP_LABEL, mLabel);
-            startActivity(intent);
-            finish();
-        } else if (v.getId() == R.id.cancel_button) {
-            if (mStagedApk != null) {
-                mStagedApk.delete();
+                    Set<String> set = groups.get(g);
+                    if (set == null) { set = new LinkedHashSet<String>(); groups.put(g, set); }
+                    set.add(pl.toString());
+                } catch (PackageManager.NameNotFoundException ignored) { }
             }
-            finish();
         }
+
+        LinearLayout list = (LinearLayout) findViewById(R.id.permissions_list);
+        TextView question = (TextView) findViewById(R.id.install_confirm_question);
+        boolean isUpdate = false;
+        try {
+            PackageInfo installed = pm.getPackageInfo(pkgInfo.packageName, 0);
+            isUpdate = pkgInfo.versionCode > installed.versionCode;
+        } catch (PackageManager.NameNotFoundException ignored) { }
+
+        if (groups.isEmpty()) {
+            question.setText(isUpdate ? R.string.update_question_no_perms
+                    : R.string.install_confirm_question_no_perms);
+        } else {
+            question.setText(isUpdate ? R.string.update_question
+                    : R.string.install_confirm_question);
+            for (Map.Entry<String, Set<String>> e : groups.entrySet()) {
+                TextView h = new TextView(this);
+                h.setText(e.getKey());
+                h.setTextColor(0xffcccccc);
+                h.setTextSize(16);
+                h.setPadding(0, dp(14), 0, dp(4));
+                list.addView(h);
+                View rule = new View(this);
+                rule.setBackgroundColor(0xff555555);
+                list.addView(rule, new LinearLayout.LayoutParams(-1, dp(1)));
+                for (String s : e.getValue()) {
+                    LinearLayout row = new LinearLayout(this);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setPadding(dp(12), dp(8), 0, dp(8));
+                    TextView dot = new TextView(this);
+                    dot.setText("\u2022");
+                    dot.setTextColor(0xffffffff);
+                    dot.setTextSize(18);
+                    dot.setPadding(0, 0, dp(12), 0);
+                    TextView t = new TextView(this);
+                    t.setText(s);
+                    t.setTextColor(0xffffffff);
+                    t.setTextSize(18);
+                    row.addView(dot);
+                    row.addView(t);
+                    list.addView(row);
+                }
+            }
+        }
+
+        View ok = findViewById(R.id.ok_button);
+        ok.setEnabled(true);
+        ok.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                Intent i = new Intent(PackageInstallerActivity.this, InstallAppProgress.class);
+                i.putExtra(InstallAppProgress.EXTRA_APK_PATH, staged.getAbsolutePath());
+                i.putExtra(InstallAppProgress.EXTRA_LABEL, label.toString());
+                i.putExtra(InstallAppProgress.EXTRA_PACKAGE, pkgInfo.packageName);
+                startActivity(i);
+                finish();
+            }
+        });
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // User may be returning from the "allow unknown sources" settings screen.
-        if (mPkgInfo != null && getPackageManager().canRequestPackageInstalls()
-                && findViewById(R.id.ok_button) == null) {
-            showConfirmUi();
-        }
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void cleanup() {
+        if (staged != null) staged.delete();
     }
 }
