@@ -1,34 +1,16 @@
-plugins {
-    id 'com.android.application'
-}
-
+plugins { id 'com.android.application' }
 android {
     namespace 'com.techno.installer'
     compileSdk 34
-
     defaultConfig {
         applicationId "com.techno.installer"
-        // REQUEST_INSTALL_PACKAGES and the PackageInstaller Session pending-user-action
-        // callback flow both need API 26 (Android 8.0) to behave correctly.
-        minSdk 26
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        minSdk 21
+        targetSdk 26
+        versionCode 18
+        versionName "4.3"
     }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-        }
-    }
-
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
-}
-
-dependencies {
-    implementation 'androidx.core:core:1.13.1'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
 }

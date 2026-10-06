@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	package="com.techno.installer"
+	android:versionCode="18"
+	android:versionName="4.3">
+
+	<uses-sdk
+		android:minSdkVersion="21"
+		android:targetSdkVersion="26"/>
+
+	<uses-permission
+		android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
+	<application
+		android:icon="@drawable/ic_launcher"
+		android:label="TechnoInstaller"
+		android:theme="@android:style/Theme.Holo.NoActionBar">
+
+		<activity
+			android:name=".PackageInstallerActivity"
+			android:exported="true"
+			android:configChanges="orientation|screenSize|keyboardHidden">
+
+			<intent-filter>
+
+				<action
+					android:name="android.intent.action.VIEW"/>
+
+				<action
+					android:name="android.intent.action.INSTALL_PACKAGE"/>
+
+				<category
+					android:name="android.intent.category.DEFAULT"/>
+
+				<data
+					android:scheme="content"/>
+
+				<data
+					android:scheme="file"/>
+
+				<data
+					android:mimeType="application/vnd.android.package-archive"/>
+
+			</intent-filter>
+
+		</activity>
+
+		<activity
+			android:name=".InstallAppProgress"
+			android:exported="false"
+			android:launchMode="singleTop"
+			android:configChanges="orientation|screenSize|keyboardHidden"/>
+
+	</application>
+
+</manifest>
+

@@ -12,7 +12,6 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import java.io.File;
@@ -28,8 +27,9 @@ public class InstallAppProgress extends Activity {
     public static final String EXTRA_PACKAGE = "com.techno.installer.extra.PACKAGE";
     private static final String ACTION_RESULT = "com.techno.installer.INSTALL_COMPLETE";
 
-    private ProgressBar bar;
-    private TextView status, statusCheck, error;
+    private View headerLine, headerProgress;
+    private TextView status, error;
+    private View statusCheck;
     private View buttons;
     private String pkg, apkPath;
     private boolean started;
@@ -58,9 +58,12 @@ public class InstallAppProgress extends Activity {
         String label = getIntent().getStringExtra(EXTRA_LABEL);
 
         ((TextView) findViewById(R.id.app_name)).setText(label);
-        bar = (ProgressBar) findViewById(R.id.progress_bar);
+        headerLine = findViewById(R.id.header_line);
+        headerProgress = findViewById(R.id.header_progress);
+        headerLine.setVisibility(View.INVISIBLE);
+        headerProgress.setVisibility(View.VISIBLE);
         status = (TextView) findViewById(R.id.center_text);
-        statusCheck = (TextView) findViewById(R.id.status_check);
+        statusCheck = findViewById(R.id.status_check);
         error = (TextView) findViewById(R.id.error_text);
         buttons = findViewById(R.id.button_bar);
 
@@ -103,21 +106,13 @@ public class InstallAppProgress extends Activity {
             PackageInstaller.Session s = pi.openSession(id);
 
             File apk = new File(apkPath);
-            long total = apk.length(), done = 0;
+            long total = apk.length();
             InputStream in = new FileInputStream(apk);
             OutputStream out = s.openWrite("techno-installer-session", 0, total);
             byte[] buf = new byte[64 * 1024];
-            int n, last = -1;
+            int n;
             while ((n = in.read(buf)) > 0) {
                 out.write(buf, 0, n);
-                done += n;
-                final int pct = (int) (done * 100 / Math.max(total, 1));
-                if (pct != last) {
-                    last = pct;
-                    runOnUiThread(new Runnable() {
-                        @Override public void run() { bar.setProgress(pct); }
-                    });
-                }
             }
             s.fsync(out);
             out.close(); in.close();
@@ -136,7 +131,8 @@ public class InstallAppProgress extends Activity {
 
     private void showResult(boolean ok, String msg) {
         new File(apkPath).delete();
-        bar.setVisibility(View.GONE);
+        headerProgress.setVisibility(View.GONE);
+        headerLine.setVisibility(View.VISIBLE);
         buttons.setVisibility(View.VISIBLE);
         if (ok) {
             statusCheck.setVisibility(View.VISIBLE);

@@ -1,50 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.techno.installer"
+    android:versionCode="1"
+    android:versionName="1.0">
 
-    <!--
-      REQUEST_INSTALL_PACKAGES is a normal (install-time) permission any app can hold.
-      It only lets the user grant THIS app "install unknown apps" access in Settings;
-      the actual install still needs the user's confirmation via the system dialog.
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="26" />
 
-      DELETE_PACKAGES / MANAGE_USERS / GRANT_REVOKE_PERMISSIONS / CLEAR_APP_* from the
-      original system app are signature|privileged permissions. A regular installed app
-      can never be granted them, so they are intentionally not requested here - the
-      uninstall flow below uses the public ACTION_UNINSTALL_PACKAGE intent instead,
-      which needs no special permission at all.
-    -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!--
-      REQUEST_DELETE_PACKAGES is the uninstall-side counterpart, also a normal
-      (auto-granted) permission since API 26. It lets us call
-      PackageInstaller#uninstall(), which then shows the system's own
-      confirmation before actually removing anything - we never get
-      DELETE_PACKAGES itself.
-    -->
-    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
-
     <application
-        android:allowBackup="false"
-        android:label="@string/app_name"
-        android:icon="@drawable/ic_result_status"
-        android:supportsRtl="true"
-        android:theme="@android:style/Theme.DeviceDefault.DialogWhenLarge.NoActionBar">
+		android:icon="@drawable/ic_launcher"
+        android:label="TechnoInstaller"
+        android:theme="@android:style/Theme.Holo.NoActionBar">
 
         <activity
             android:name=".PackageInstallerActivity"
             android:exported="true"
-            android:excludeFromRecents="true"
-            android:configChanges="keyboardHidden|orientation|screenSize">
+            android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.INSTALL_PACKAGE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" />
-                <data android:mimeType="application/vnd.android.package-archive" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="file" />
                 <data android:mimeType="application/vnd.android.package-archive" />
             </intent-filter>
@@ -53,53 +30,7 @@
         <activity
             android:name=".InstallAppProgress"
             android:exported="false"
-            android:launchMode="singleTask"
-            android:configChanges="keyboardHidden|orientation|screenSize" />
-
-        <activity
-            android:name=".UninstallerActivity"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:theme="@android:style/Theme.DeviceDefault.Dialog.NoActionBar"
-            android:configChanges="keyboardHidden|orientation|screenSize">
-            <intent-filter>
-                <action android:name="android.intent.action.DELETE" />
-                <action android:name="android.intent.action.UNINSTALL_PACKAGE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="package" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".UninstallAppProgress"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:configChanges="keyboardHidden|orientation|screenSize" />
-
-        <!--
-          The original GrantActivity (android.content.pm.action.REQUEST_PERMISSION) is not
-          included: since Android 6.0 that flow is handled exclusively by the system's
-          signature-protected PermissionController, so a regular installed app cannot
-          reimplement or intercept it.
-        -->
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="com.techno.installer.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-
-        <receiver
-            android:name=".InstallResultReceiver"
-            android:exported="false" />
-
-        <receiver
-            android:name=".UninstallResultReceiver"
-            android:exported="false" />
-
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
     </application>
 </manifest>
